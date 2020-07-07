@@ -8,11 +8,18 @@ trait HasPendingChange
 {
 
     /**
+     * Is set to true to stop relations from being serialized
+     * 
+     * @var bool
+     */
+    protected $hideRelations = false;
+
+    /**
      * Retrieve the PendingChange associated with this model
      *
      * @return null|Artificerkal\LaravelPendingChange\PendingChange|\Illuminate\Database\Eloquent\Relations\MorphOne
      */
-    public function pendingChange()
+    protected function pendingChange()
     {
         return $this->morphOne(PendingChange::class, 'updateable');
     }
@@ -34,10 +41,16 @@ trait HasPendingChange
         if (\in_array('append', $options) && $this->pendingChange && is_array($this->pendingChange->data))
             $data = \array_merge($this->pendingChange->data, $data);
 
-        $this->pendingChange()->updateOrCreate([], ['data' => $data]);
+        \optional($this->pendingChange()->updateOrCreate([], ['data' => $data]), function ($pendingChange) {
+            $this->pendingChange = $pendingChange;
+        });
 
         if (\in_array('reset', $options)) {
-            $this->fill($this->getOriginal())->syncChanges();
+            \tap($this, function ($model) {
+                foreach ($model->getOriginal() as $key => $value) {
+                    $this->setAttribute($key, $value);
+                }
+            })->syncChanges();
         }
 
         return $this;
@@ -62,13 +75,19 @@ trait HasPendingChange
      *
      * @return $this
      */
-    public function applyPending()
+    public function applyPending($options = [])
     {
-        \optional($this->pendingChange, function ($pendingChange) {
+        $options = is_string($options) ? func_get_args() : $options;
+
+        \optional($this->pendingChange, function ($pendingChange) use (&$options) {
             if ($pendingChange->data == 'delete')
                 $this->delete();
-            else
-                $this->fill($pendingChange->data)->save();
+            else {
+                foreach ($pendingChange->data as $key => $value) {
+                    $this->setAttribute($key, $value);
+                }
+                $this->save();
+            }
 
             $this->removePending();
         });
@@ -83,8 +102,45 @@ trait HasPendingChange
      */
     public function removePending()
     {
-        $this->pendingChange->refresh()->delete();
+        \optional($this->pendingChange, function ($pendingChange) {
+            $pendingChange->delete();
+            unset($this->pendingChange);
+        });
 
         return $this;
+    }
+
+
+    public function getDraftDataAttribute()
+    {
+        $this->makeHidden('pendingChange');
+
+        if (!$this->pendingChange) return null;
+
+        if ($this->pendingChange->data == 'delete') return $this->pendingChange->data;
+
+        $attributes = \array_merge($this->getAttributes(), $this->pendingChange->data);
+
+        $draftVersion = $this->replicate();
+        unset($draftVersion->pendingChange);
+
+        foreach ($attributes as $key => $value) {
+            $draftVersion->setAttribute($key, $value);
+        }
+
+        $draftVersion->hideRelations = true;
+
+        return $draftVersion;
+    }
+
+    /**
+     * Convert the model instance to an array.
+     *
+     * @return array
+     */
+    public function toArray()
+    {
+        if ($this->hideRelations) return $this->attributesToArray();
+        return parent::toArray();
     }
 }

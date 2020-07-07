@@ -21,6 +21,13 @@ class PendingChange extends Model
     protected $fillable = ['data'];
 
     /**
+     * The attributes that should be hidden for arrays.
+     *
+     * @var array
+     */
+    protected $hidden = ['updateable'];
+
+    /**
      * The attributes that should be cast.
      *
      * @var array
@@ -31,6 +38,6 @@ class PendingChange extends Model
 
     public function updateable()
     {
-        $this->morphTo();
+        return $this->morphTo();
     }
 }
