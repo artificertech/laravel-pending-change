@@ -1,5 +1,5 @@
 {
-    "name": "artificerkal/laravel-pending-change",
+    "name": "artificertech/laravel-pending-change",
     "description": "A Laravel package for saving changes to models that will be applied later",
     "authors": [
         {
@@ -16,7 +16,7 @@
     },
     "autoload": {
         "psr-4": {
-            "Artificerkal\\LaravelPendingChange\\": "src/"
+            "Artificertech\\LaravelPendingChange\\": "src/"
         }
     }
 }
